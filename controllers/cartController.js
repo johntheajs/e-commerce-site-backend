@@ -4,7 +4,8 @@ const Product = require('../models/Product');
 // Add a product to the cart
 exports.addToCart = async (req, res) => {
   try {
-    const { userId, productId, count } = req.body;
+    const { productId, count } = req.body;
+    const userId = req.user;
 
     // Check if the product exists
     const product = await Product.findById(productId);
@@ -47,7 +48,7 @@ exports.addToCart = async (req, res) => {
 
 // Get the cart for a user
 exports.getCart = async (req, res) => {
-  const { userId } = req.params;
+  const userId = req.user;
 
   try {
     // Populate the product details in the cart response
@@ -61,15 +62,53 @@ exports.getCart = async (req, res) => {
   }
 };
 
-// Update the cart (not implemented)
+// Update the cart product count based on conditions
 exports.updateCart = async (req, res) => {
-  // Logic to update product count, remove product, etc.
-  // Implement according to your requirements
+  try {
+    const { productId, count } = req.body;
+    const userId = req.user;
+
+    // Find the cart for the user
+    const cart = await Cart.findOne({ userId });
+
+    if (!cart) {
+      return res.status(404).json({ error: 'Cart not found' });
+    }
+
+    // Find the product in the user's cart
+    const productInCart = cart.products.find(p => p.productId.equals(productId));
+
+    if (!productInCart) {
+      return res.status(404).json({ error: 'Product not found in the cart' });
+    }
+
+    // If the product count in the cart is greater than the new count, reduce it
+    if (productInCart.count > count) {
+      productInCart.count = count;
+      cart.totalCost = cart.products.reduce((total, item) => total + (item.count * item.price), 0);
+      await cart.save();
+      return res.json(cart);
+    }
+
+    // If the product count in the cart is less than the new count, return an error
+    if (productInCart.count < count) {
+      return res.status(400).json({ error: 'Cannot update. Count exceeds existing product count in cart.' });
+    }
+
+    // If the product count equals the new count, remove the product by calling the delete function
+    if (productInCart.count === count) {
+      await this.deleteProductFromCart(req, res);
+    }
+
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 };
 
 // Delete a product from the cart
 exports.deleteProductFromCart = async (req, res) => {
-  const { userId, productId } = req.body;
+  const { productId } = req.body;
+  const userId = req.user;
 
   try {
     const cart = await Cart.findOne({ userId });

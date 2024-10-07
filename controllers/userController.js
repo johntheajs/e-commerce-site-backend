@@ -1,6 +1,8 @@
 const User = require('../models/User');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const dotenv = require('dotenv');
+dotenv.config();
 
 exports.createUser = async (req, res) => {
   try {
@@ -22,7 +24,9 @@ exports.loginUser = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-    const token = jwt.sign({ id: user._id }, 'your_jwt_secret');
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+
     res.json({ token, userId: user._id });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -31,18 +35,30 @@ exports.loginUser = async (req, res) => {
 
 exports.updatePassword = async (req, res) => {
   try {
-    const { userId, newPassword } = req.body;
-    const user = await User.findById(userId);
+    const { newPassword } = req.body; // No need for userId, it will be taken from req.user
+
+    // Get the authenticated user ID from the decoded token
+    const user = await User.findById(req.user); // req.user contains the userId from the token
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // Hash the new password and update it
     user.password = await bcrypt.hash(newPassword, 10);
     await user.save();
-    res.json({ message: 'Password updated' });
+
+    res.json({ message: 'Password updated successfully' });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 };
 
 exports.getUserById = async (req, res) => {
-  const { userId } = req.params;
-  const user = await User.findById(userId);
-  res.json(user);
+  try {
+    // Get the user ID from the token, not from params
+    const user = await User.findById(req.user); // req.user contains the userId from the token
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    res.json(user);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 };
