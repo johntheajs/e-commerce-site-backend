@@ -83,7 +83,7 @@ exports.updateCart = async (req, res) => {
     }
 
     // If the product count in the cart is greater than the new count, reduce it
-    if (productInCart.count > count) {
+    if (count>0) {
       productInCart.count = count;
       cart.totalCost = cart.products.reduce((total, item) => total + (item.count * item.price), 0);
       await cart.save();
@@ -91,12 +91,12 @@ exports.updateCart = async (req, res) => {
     }
 
     // If the product count in the cart is less than the new count, return an error
-    if (productInCart.count < count) {
+    if (count<0) {
       return res.status(400).json({ error: 'Cannot update. Count exceeds existing product count in cart.' });
     }
 
     // If the product count equals the new count, remove the product by calling the delete function
-    if (productInCart.count === count) {
+    if (count==0) {
       await this.deleteProductFromCart(req, res);
     }
 
